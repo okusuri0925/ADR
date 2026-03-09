@@ -1,336 +1,408 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Copy, CheckCircle, AlertTriangle, AlertOctagon, Info, ChevronRight, RotateCcw } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTCAE v6.0 判定支援ツール</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { font-family: 'Inter', 'sans-serif'; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
 
-const CTCAE_DATA = [
-  {
-    id: 'diarrhea',
-    name: '下痢',
-    category: '胃腸障害',
-    questions: [
-      { id: 'q1', text: '排便回数は通常時より1日何回増えていますか？', options: [
-        { label: '4回未満', value: 1 },
-        { label: '4〜6回', value: 2 },
-        { label: '7回以上', value: 3 }
-      ]},
-      { id: 'q2', text: '日常生活への影響はありますか？', options: [
-        { label: '特に支障なし', value: 1 },
-        { label: '家事や身の回りの動作に一部支障あり', value: 2 },
-        { label: 'セルフケア（着替え、食事など）が困難', value: 3 }
-      ]},
-      { id: 'q3', text: '入院や緊急処置が必要な状態（脱水など）ですか？', options: [
-        { label: 'いいえ', value: 1 },
-        { label: 'はい', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "ベースラインより4回/日未満の増加。軽度の腹痛を伴うことがある。",
-      2: "ベースラインより4〜6回/日の増加。日常生活に制限がある。",
-      3: "ベースラインより7回/日以上の増加。失禁、入院、セルフケアの制限。"
-    }
-  },
-  {
-    id: 'hfs',
-    name: '手足症候群',
-    category: '皮膚障害',
-    questions: [
-      { id: 'q1', text: '皮膚の状態（紅斑・腫れなど）はどうですか？', options: [
-        { label: '軽度の感覚変化・紅斑（痛みなし）', value: 1 },
-        { label: '痛みのある紅斑・腫れ', value: 2 },
-        { label: '重度の痛み・水疱・潰瘍', value: 3 }
-      ]},
-      { id: 'q2', text: '日常生活（歩行、保持など）に支障はありますか？', options: [
-        { label: '支障なし', value: 1 },
-        { label: '支障あり', value: 2 },
-        { label: '極めて困難', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "痛みのない皮膚の変化。日常生活に影響なし。",
-      2: "痛みがあるが、身の回りのセルフケアは可能。日常生活が制限される。",
-      3: "激しい痛み、皮膚の剥離。セルフケアが困難。"
-    }
-  },
-  {
-    id: 'stomatitis',
-    name: '口内炎',
-    category: '胃腸障害',
-    questions: [
-      { id: 'q1', text: '食事や飲み込みの状態はどうですか？', options: [
-        { label: '食事は普通に摂れる', value: 1 },
-        { label: '経口摂取は可能（食事がやや困難）', value: 2 },
-        { label: '経口摂取が著しく困難（流動食のみなど）', value: 3 }
-      ]},
-      { id: 'q2', text: '痛みの程度はどうですか？', options: [
-        { label: '無症状または軽微な痛み', value: 1 },
-        { label: '中等度の痛みがあるが食生活は維持', value: 2 },
-        { label: '激しい痛み', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "無症状または軽度の症状。食事制限なし。",
-      2: "痛みがあるが、食生活に一部制限。中等度の紅斑・潰瘍。",
-      3: "激しい痛み、食事摂取が困難。"
-    }
-  },
-  {
-    id: 'neuropathy',
-    name: '末梢神経障害',
-    category: '神経障害',
-    questions: [
-      { id: 'q1', text: 'しびれや痛みによる日常生活への影響はどうですか？', options: [
-        { label: '無症状または腱反射消失、感覚異常（支障なし）', value: 1 },
-        { label: 'ボタンかけやタイピングなどの微細な動作に支障', value: 2 },
-        { label: '歩行や身の回りのセルフケアに支障', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "感覚異常。腱反射消失。日常生活に制限なし。",
-      2: "痛みや感覚異常を伴う。ボタンかけなどの微細な動作が制限される。",
-      3: "感覚異常のため歩行が困難。セルフケアが制限される。"
-    }
-  },
-  {
-    id: 'paronychia',
-    name: '爪囲炎',
-    category: '皮膚障害',
-    questions: [
-      { id: 'q1', text: '爪周りの状態はどうですか？', options: [
-        { label: '浮腫、紅斑、または爪甲剥離がある（痛みなし）', value: 1 },
-        { label: '痛み、分泌物、感染、日常生活への支障あり', value: 2 },
-        { label: '激しい痛み、セルフケアへの支障、外科的処置が必要', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "浮腫または紅斑。爪甲剥離。痛みはない。",
-      2: "局所的な処置が必要。日常生活（タイピングや家事など）が制限される。",
-      3: "セルフケアが困難。外科的介入や入院が必要。"
-    }
-  },
-  {
-    id: 'hypertension',
-    name: '高血圧',
-    category: '血管障害',
-    questions: [
-      { id: 'q1', text: '血圧の値（収縮期/拡張期）または管理状況はどうですか？', options: [
-        { label: '140-159 / 90-99 mmHg (または前値より上昇)', value: 1 },
-        { label: '>= 160 / 100 mmHg（降圧薬の開始・調整が必要）', value: 2 },
-        { label: '高度の上昇（複数の降圧薬が必要・緊急治療を要する）', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "120-139/80-89からの上昇（成人）。介入は不要。",
-      2: "降圧薬の治療開始または調整が必要。日常生活に制限なし。",
-      3: "高度の上昇。複数の薬剤による治療が必要。セルフケアの制限。"
-    }
-  },
-  {
-    id: 'rash',
-    name: '皮疹（ざ瘡様皮疹など）',
-    category: '皮膚障害',
-    questions: [
-      { id: 'q1', text: '発疹の広がりの範囲（体表面積）はどうですか？', options: [
-        { label: '10%未満', value: 1 },
-        { label: '10〜30%', value: 2 },
-        { label: '30%以上', value: 3 }
-      ]},
-      { id: 'q2', text: '症状や日常生活への影響はどうですか？', options: [
-        { label: '無症状または軽度の掻痒・灼熱感', value: 1 },
-        { label: '掻痒・灼熱感による日常生活への支障あり', value: 2 },
-        { label: '二次感染の合併またはセルフケア困難', value: 3 }
-      ]}
-    ],
-    calcGrade: (answers) => Math.max(...Object.values(answers)),
-    descriptions: {
-      1: "体表面積（BSA）の10%未満。局所治療が必要な場合がある。",
-      2: "BSAの10〜30%。心理的・社会的な影響を含む日常生活の制限。",
-      3: "BSAの30%以上。二次感染を伴う場合がある。セルフケアの制限。"
-    }
-  }
-];
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
 
-const App = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [answers, setAnswers] = useState({});
-  const [copied, setCopied] = useState(false);
+        // CTCAE v6.0 データ
+        const CTCAE_DATA = [
+            {
+                id: 'diarrhea',
+                name: '下痢',
+                category: '胃腸障害',
+                questions: [
+                    { id: 'q1', text: '排便回数は通常時より1日何回増えていますか？', options: [
+                        { label: '4回未満', value: 1 },
+                        { label: '4〜6回', value: 2 },
+                        { label: '7回以上', value: 3 }
+                    ]},
+                    { id: 'q2', text: '日常生活への影響（ADL）はどうですか？', options: [
+                        { label: '特に支障なし', value: 1 },
+                        { label: '身の回りの動作（家事など）に一部支障あり', value: 2 },
+                        { label: 'セルフケア（着替え、食事など）が困難', value: 3 }
+                    ]},
+                    { id: 'q3', text: '入院、失禁、または緊急の静脈内輸液が必要ですか？', options: [
+                        { label: 'いいえ', value: 1 },
+                        { label: 'はい', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "ベースラインより4回/日未満の増加。軽度の腹痛を含む。",
+                    2: "ベースラインより4〜6回/日の増加。身の回りのADL（Instrumental ADL）が制限される。",
+                    3: "ベースラインより7回/日以上の増加。失禁、入院、セルフケアADLの制限。"
+                }
+            },
+            {
+                id: 'stomatitis',
+                name: '口内炎',
+                category: '胃腸障害',
+                questions: [
+                    { id: 'q1', text: '粘膜の状態と食事の摂りやすさはどうですか？', options: [
+                        { label: '無症状または軽微な痛み（食事制限なし）', value: 1 },
+                        { label: '痛み・紅斑があるが、修正した食事（軟食等）が摂れる', value: 2 },
+                        { label: '経口摂取が著しく困難（流動食または経管栄養検討）', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "無症状または軽微な症状。治療不要。",
+                    2: "中等度の症状。食事内容の変更が必要。身の回りのADL制限。",
+                    3: "重度の症状。経口摂取不能。セルフケアADLの制限。"
+                }
+            },
+            {
+                id: 'hfs',
+                name: '手足症候群 (PPES)',
+                category: '皮膚障害',
+                questions: [
+                    { id: 'q1', text: '皮膚の状態（紅斑・腫れ・剥離など）はどうですか？', options: [
+                        { label: '軽度の感覚変化・痛みなしの紅斑', value: 1 },
+                        { label: '痛みのある紅斑・腫れ', value: 2 },
+                        { label: '重度の痛み・水疱・潰瘍・角化移行', value: 3 }
+                    ]},
+                    { id: 'q2', text: '日常生活（歩行、保持など）への影響はどうですか？', options: [
+                        { label: '支障なし', value: 1 },
+                        { label: '痛みにより身の回りの活動が制限される', value: 2 },
+                        { label: '痛みによりセルフケアが困難', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "痛みのない皮膚の変化（紅斑、浮腫など）。ADL制限なし。",
+                    2: "痛みのある皮膚の変化。身の回りのADLが制限される。",
+                    3: "重度の痛み。セルフケアADLが困難。"
+                }
+            },
+            {
+                id: 'paronychia',
+                name: '爪囲炎',
+                category: '皮膚障害',
+                questions: [
+                    { id: 'q1', text: '爪周りの痛みや炎症、処置の必要性はどうですか？', options: [
+                        { label: '痛みはないが、紅斑や爪の変形がある', value: 1 },
+                        { label: '痛み、分泌物、感染があり、局所処置を要する', value: 2 },
+                        { label: '激しい痛み、外科的介入や入院が必要', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "紅斑または浮腫。爪甲剥離。痛みなし。ADL制限なし。",
+                    2: "局所介入を要する痛み・感染。身の回りのADLが制限される。",
+                    3: "セルフケアADLが制限される。外科的処置が必要な状態。"
+                }
+            },
+            {
+                id: 'rash',
+                name: '皮疹（ざ瘡様皮疹など）',
+                category: '皮膚障害',
+                questions: [
+                    { id: 'q1', text: '発疹の範囲（体表面積：BSA）と自覚症状はどうですか？', options: [
+                        { label: 'BSA 10%未満（無症状または軽度の症状）', value: 1 },
+                        { label: 'BSA 10〜30%（痛み・痒みがあり、ADLに影響）', value: 2 },
+                        { label: 'BSA 30%以上（重度の症状または二次感染）', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "BSA 10%未満。局所治療を要する場合がある。ADL制限なし。",
+                    2: "BSA 10-30%。経口薬の併用を要する場合がある。ADL制限あり。",
+                    3: "BSA 30%以上。入院や点滴による治療を要する場合がある。ADL重度制限。"
+                }
+            },
+            {
+                id: 'neuropathy',
+                name: '末梢神経障害',
+                category: '神経障害',
+                questions: [
+                    { id: 'q1', text: 'しびれや痛み、ADLへの影響はどうですか？', options: [
+                        { label: '感覚異常があるが痛みや機能障害なし', value: 1 },
+                        { label: '痛みや感覚異常により身の回りの動作に支障あり', value: 2 },
+                        { label: 'セルフケアADL（歩行・ボタンかけ等）に重度支障', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "無症状または感覚異常（腱反射消失含む）。機能障害なし。",
+                    2: "中等度の症状。身の回りのADL（料理、タイピング等）の制限。",
+                    3: "重度の症状。セルフケアADL（歩行、食事、入浴等）の制限。"
+                }
+            },
+            {
+                id: 'hypertension',
+                name: '高血圧',
+                category: '血管障害',
+                questions: [
+                    { id: 'q1', text: '血圧の値（収縮期/拡張期）または介入状況はどうですか？', options: [
+                        { label: '140-159 / 90-99 mmHg（成人）', value: 1 },
+                        { label: '>= 160 / 100 mmHg（降圧薬の開始・調整が必要）', value: 2 },
+                        { label: '高度の上昇（複数の降圧薬による治療が必要）', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "軽度の上昇。医学的介入は通常不要。",
+                    2: "降圧治療の開始または薬剤の増量・変更が必要。",
+                    3: "重度の高血圧。複数の薬剤による集中治療が必要。ADL制限を伴うことも。"
+                }
+            },
+            {
+                id: 'fatigue',
+                name: '倦怠感 (Fatigue)',
+                category: '全身障害',
+                questions: [
+                    { id: 'q1', text: '疲れやすさや活動状況はどうですか？', options: [
+                        { label: '休息により軽快する程度の倦怠感', value: 1 },
+                        { label: '休息しても軽快せず、家事などの活動に支障あり', value: 2 },
+                        { label: 'セルフケア（入浴・食事など）が困難', value: 3 }
+                    ]}
+                ],
+                calcGrade: (answers) => Math.max(...Object.values(answers)),
+                descriptions: {
+                    1: "休息により軽快する。日常生活に制限なし。",
+                    2: "休息により軽快せず。身の回りのADL（家事・買い物等）が制限される。",
+                    3: "休息にかかわらず持続。セルフケア（食事・着替え等）が困難。"
+                }
+            }
+        ];
 
-  const filteredEvents = useMemo(() => {
-    return CTCAE_DATA.filter(event => 
-      event.name.includes(searchTerm) || event.category.includes(searchTerm)
-    );
-  }, [searchTerm]);
+        const Icon = ({ name, className }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
 
-  const currentGrade = useMemo(() => {
-    if (!selectedEvent || Object.keys(answers).length === 0) return null;
-    return selectedEvent.calcGrade(answers);
-  }, [selectedEvent, answers]);
+        const App = () => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedEvent, setSelectedEvent] = useState(null);
+            const [answers, setAnswers] = useState({});
+            const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    const text = `【CTCAE評価：${selectedEvent.name}】
+            const categories = useMemo(() => {
+                return [...new Set(CTCAE_DATA.map(item => item.category))];
+            }, []);
+
+            const filteredData = useMemo(() => {
+                return CTCAE_DATA.filter(event => 
+                    event.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    event.category.includes(searchTerm)
+                );
+            }, [searchTerm]);
+
+            const currentGrade = useMemo(() => {
+                if (!selectedEvent || Object.keys(answers).length === 0) return null;
+                return selectedEvent.calcGrade(answers);
+            }, [selectedEvent, answers]);
+
+            const handleCopy = () => {
+                const text = `【CTCAE v6.0評価：${selectedEvent.name}】
 判定：Grade ${currentGrade}
 状況：${selectedEvent.descriptions[currentGrade]}
 回答詳細：${Object.entries(answers).map(([qid, val]) => {
-      const q = selectedEvent.questions.find(q => q.id === qid);
-      const opt = q.options.find(o => o.value === val);
-      return `\n - ${q.text}: ${opt.label}`;
-    }).join('')}`;
-    
-    const tempInput = document.createElement("textarea");
-    tempInput.value = text;
-    document.body.appendChild(tempInput);
-    tempInput.select();
-    document.execCommand("copy");
-    document.body.removeChild(tempInput);
+                    const q = selectedEvent.questions.find(q => q.id === qid);
+                    const opt = q.options.find(o => o.value === val);
+                    return `\n - ${q.text}: ${opt.label}`;
+                }).join('')}`;
+                
+                const tempInput = document.createElement("textarea");
+                tempInput.value = text;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
 
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            };
 
-  const reset = () => {
-    setSelectedEvent(null);
-    setAnswers({});
-  };
+            const reset = () => {
+                setSelectedEvent(null);
+                setAnswers({});
+            };
 
-  const getGradeUI = (grade) => {
-    switch (grade) {
-      case 1: return { color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: <CheckCircle className="w-6 h-6" />, label: 'Grade 1: 軽度' };
-      case 2: return { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: <AlertTriangle className="w-6 h-6" />, label: 'Grade 2: 中等度' };
-      case 3: return { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: <AlertOctagon className="w-6 h-6" />, label: 'Grade 3: 重度' };
-      default: return { color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', icon: <Info className="w-6 h-6" />, label: '-' };
-    }
-  };
+            const getGradeUI = (grade) => {
+                switch (grade) {
+                    case 1: return { color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: 'check-circle', label: 'Grade 1: 軽症' };
+                    case 2: return { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'alert-triangle', label: 'Grade 2: 中等症' };
+                    case 3: return { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: 'alert-octagon', label: 'Grade 3: 重症' };
+                    default: return { color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', icon: 'info', label: '-' };
+                }
+            };
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-2xl mx-auto">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-extrabold text-blue-800 flex items-center justify-center gap-2">
-            <AlertOctagon className="text-blue-600" /> CTCAE Grade 判定アシスト
-          </h1>
-          <p className="text-slate-500 mt-2 text-sm italic">薬局での副作用モニタリングと受診勧奨の判断に</p>
-        </header>
+            return (
+                <div className="max-w-2xl mx-auto py-8 px-4">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-3xl font-black text-blue-800 flex items-center justify-center gap-2">
+                            <Icon name="alert-octagon" className="text-blue-600 w-8 h-8" /> CTCAE v6.0 判定支援
+                        </h1>
+                        <p className="text-slate-500 mt-2 text-sm italic">カテゴリー別に副作用を評価します</p>
+                    </header>
 
-        {!selectedEvent ? (
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="副作用名で検索（例：下痢、手足、血圧...）"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+                    {!selectedEvent ? (
+                        <div className="space-y-6">
+                            <div className="relative shadow-sm">
+                                <Icon name="search" className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    placeholder="副作用・分野で検索..."
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
 
-            <div className="grid gap-3">
-              {filteredEvents.map(event => (
-                <button
-                  key={event.id}
-                  onClick={() => setSelectedEvent(event)}
-                  className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all text-left"
-                >
-                  <div>
-                    <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">{event.category}</span>
-                    <h3 className="text-lg font-bold">{event.name}</h3>
-                  </div>
-                  <ChevronRight className="text-slate-300" />
-                </button>
-              ))}
-              {filteredEvents.length === 0 && (
-                <div className="text-center py-10 text-slate-400">
-                  該当する副作用が見つかりません。
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <button 
-              onClick={reset}
-              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors mb-4"
-            >
-              <RotateCcw className="w-4 h-4" /> 副作用一覧へ戻る
-            </button>
+                            {searchTerm ? (
+                                <div className="grid gap-3">
+                                    <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2 px-1 uppercase tracking-wider">
+                                        <Icon name="list" className="w-4 h-4" /> 検索結果
+                                    </h2>
+                                    {filteredData.map(event => (
+                                        <button
+                                            key={event.id}
+                                            onClick={() => setSelectedEvent(event)}
+                                            className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all text-left"
+                                        >
+                                            <div>
+                                                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{event.category}</span>
+                                                <h3 className="text-lg font-bold">{event.name}</h3>
+                                            </div>
+                                            <Icon name="chevron-right" className="text-slate-300 w-5 h-5" />
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {categories.map(cat => (
+                                        <section key={cat} className="space-y-3">
+                                            <h2 className="text-sm font-bold text-slate-500 flex items-center gap-2 px-1 uppercase tracking-widest border-l-4 border-blue-500 pl-3">
+                                                {cat}
+                                            </h2>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {CTCAE_DATA.filter(item => item.category === cat).map(event => (
+                                                    <button
+                                                        key={event.id}
+                                                        onClick={() => setSelectedEvent(event)}
+                                                        className="bg-white p-4 rounded-xl border border-slate-100 flex items-center justify-between hover:border-blue-400 hover:shadow-sm transition-all text-left group"
+                                                    >
+                                                        <span className="font-bold text-slate-700 group-hover:text-blue-700">{event.name}</span>
+                                                        <Icon name="chevron-right" className="text-slate-200 group-hover:text-blue-400 w-4 h-4" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </section>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-6 animate-in">
+                            <button onClick={reset} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium">
+                                <Icon name="rotate-ccw" className="w-4 h-4" /> 一覧に戻る
+                            </button>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
-              <div className="bg-blue-600 p-4 text-white">
-                <h2 className="text-xl font-bold">{selectedEvent.name} の評価判定</h2>
-              </div>
-              
-              <div className="p-6 space-y-8">
-                {selectedEvent.questions.map((q) => (
-                  <div key={q.id} className="space-y-3">
-                    <p className="font-medium text-slate-700 leading-tight">{q.text}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {q.options.map((opt) => (
-                        <button
-                          key={opt.label}
-                          onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt.value }))}
-                          className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
-                            answers[q.id] === opt.value
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                              : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+                                <div className="bg-gradient-to-r from-blue-700 to-blue-500 p-5 text-white flex justify-between items-center">
+                                    <div>
+                                        <h2 className="text-2xl font-bold">{selectedEvent.name}</h2>
+                                        <p className="text-blue-100 text-xs mt-1 uppercase tracking-widest font-semibold">{selectedEvent.category}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="p-6 space-y-8">
+                                    {selectedEvent.questions.map((q) => (
+                                        <div key={q.id} className="space-y-4">
+                                            <p className="font-bold text-slate-800 leading-tight flex items-start gap-3 text-lg">
+                                                <span className="bg-blue-600 text-white w-6 h-6 rounded-lg flex items-center justify-center text-xs shrink-0 mt-0.5 shadow-sm font-mono">Q</span>
+                                                {q.text}
+                                            </p>
+                                            <div className="grid gap-2">
+                                                {q.options.map((opt) => (
+                                                    <button
+                                                        key={opt.label}
+                                                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt.value }))}
+                                                        className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all ${
+                                                            answers[q.id] === opt.value
+                                                                ? 'bg-blue-50 border-blue-600 text-blue-800 shadow-inner font-bold'
+                                                                : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        {opt.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
 
-              {Object.keys(answers).length > 0 && (
-                <div className={`m-6 p-6 rounded-xl border-2 transition-all ${getGradeUI(currentGrade).bg} ${getGradeUI(currentGrade).border}`}>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className={getGradeUI(currentGrade).color}>
-                      {getGradeUI(currentGrade).icon}
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold opacity-60 uppercase tracking-widest">判定結果</div>
-                      <div className={`text-2xl font-black ${getGradeUI(currentGrade).color}`}>
-                        {getGradeUI(currentGrade).label}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-slate-700 bg-white/50 p-3 rounded-lg text-sm border border-white/50">
-                    {selectedEvent.descriptions[currentGrade]}
-                  </p>
-                  
-                  <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={handleCopy}
-                      className="flex-1 bg-slate-800 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95"
-                    >
-                      {copied ? <CheckCircle className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                      {copied ? 'コピー完了' : 'SOAPE転記用にコピー'}
-                    </button>
-                    {currentGrade >= 2 && (
-                      <div className="flex-1 bg-amber-100 text-amber-800 p-3 rounded-xl text-xs font-bold border border-amber-200 flex items-center justify-center text-center">
-                        ⚠️ Grade 2 以上は注意が必要です。<br/>疑義照会・受診勧奨を検討してください。
-                      </div>
+                                {Object.keys(answers).length > 0 && (
+                                    <div className={`m-6 p-6 rounded-2xl border-2 transition-all ${getGradeUI(currentGrade).bg} ${getGradeUI(currentGrade).border} shadow-sm`}>
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <div className={getGradeUI(currentGrade).color}>
+                                                <Icon name={getGradeUI(currentGrade).icon} className="w-8 h-8" />
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">CTCAE Result</div>
+                                                <div className={`text-2xl font-black ${getGradeUI(currentGrade).color}`}>
+                                                    {getGradeUI(currentGrade).label}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl text-sm border border-white/50 leading-relaxed text-slate-700">
+                                            {selectedEvent.descriptions[currentGrade]}
+                                        </div>
+                                        
+                                        <div className="mt-6 flex flex-col gap-3">
+                                            <button
+                                                onClick={handleCopy}
+                                                className="w-full bg-slate-900 text-white py-4 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-95 shadow-lg"
+                                            >
+                                                <Icon name={copied ? "check-circle" : "copy"} className={`w-5 h-5 ${copied ? 'text-green-400' : ''}`} />
+                                                {copied ? '薬歴用テキストをコピーしました' : '薬歴SOAPE用にコピー'}
+                                            </button>
+                                            {currentGrade >= 2 && (
+                                                <div className="bg-white/50 border border-amber-200 text-amber-900 p-4 rounded-xl text-xs font-bold flex items-center gap-3">
+                                                    <Icon name="alert-triangle" className="shrink-0 text-amber-500 w-6 h-6" />
+                                                    <div>
+                                                        Grade 2以上が確認されました。主治医への報告、休薬・減量の検討、支持療法の強化を推奨します。
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
-                  </div>
+
+                    <footer className="mt-12 text-center text-slate-400 text-[10px] leading-relaxed pb-12">
+                        ※本ツールは CTCAE v6.0 (2024年発表) の評価基準に基づき作成されています。<br/>
+                        最終的な医療判断は各施設のプロトコールおよび医師の指示に従ってください。
+                    </footer>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+            );
+        };
 
-        <footer className="mt-12 text-center text-slate-400 text-[10px] leading-relaxed">
-          ※本ツールはCTCAE v5.0 日本語訳JCOG版を参考に作成した簡易判定支援用です。<br/>
-          最終的な医療的判断は医師・薬剤師の責任で行ってください。
-        </footer>
-      </div>
-    </div>
-  );
-};
-
-export default App;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
