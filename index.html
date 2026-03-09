@@ -1,443 +1,261 @@
-import { useState } from "react";
+import React, { useState, useMemo } from 'react';
+import { Search, Copy, CheckCircle, AlertTriangle, AlertOctagon, Info, ChevronRight, RotateCcw } from 'lucide-react';
 
-const ctcaeData = {
-  "消化器系": {
-    icon: "🫃",
-    items: {
-      "悪心": {
-        grades: [
-          { grade: 1, desc: "摂食習慣に影響しない食欲低下" },
-          { grade: 2, desc: "顕著な体重減少、脱水または栄養失調を伴わない経口摂取量の減少" },
-          { grade: 3, desc: "カロリーや水分の経口摂取が不十分；経管栄養／TPN／入院を要する" },
-        ],
-        action: ["Grade 1: 制吐剤の検討、少量頻回食", "Grade 2: 制吐剤の使用、水分補給を確認", "Grade 3: 医師への報告、入院検討"]
-      },
-      "嘔吐": {
-        grades: [
-          { grade: 1, desc: "24時間に1〜2エピソード（5分以上間隔を空けて）" },
-          { grade: 2, desc: "24時間に3〜5エピソード（5分以上間隔を空けて）" },
-          { grade: 3, desc: "24時間に6エピソード以上；経管栄養／TPN／入院を要する" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1-2: 制吐剤、水分補給", "Grade 3: 医師報告、輸液検討", "Grade 4: 即時医師報告・救急対応"]
-      },
-      "下痢": {
-        grades: [
-          { grade: 1, desc: "ベースラインと比べて＜4回/日の排便増加" },
-          { grade: 2, desc: "ベースラインと比べて4〜6回/日の排便増加；ストーマ排泄量の中程度の増加" },
-          { grade: 3, desc: "ベースラインと比べて≧7回/日；入院を要する；ストーマ排泄量の高度の増加；日常生活の制限" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1: ロペラミド、水分補給", "Grade 2: 積極的な補液、食事指導", "Grade 3-4: 即時医師報告、入院"]
-      },
-      "口腔粘膜炎": {
-        grades: [
-          { grade: 1, desc: "症状がない、または軽度の症状；治療を要さない" },
-          { grade: 2, desc: "中等度の疼痛；経口摂取に影響しない；食事の変更を要する" },
-          { grade: 3, desc: "高度の疼痛；経口摂取に支障" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1: 含嗽励行", "Grade 2: 鎮痛剤、含嗽液", "Grade 3-4: 医師報告、栄養管理"]
-      }
+const CTCAE_DATA = [
+  {
+    id: 'diarrhea',
+    name: '下痢',
+    category: '胃腸障害',
+    questions: [
+      { id: 'q1', text: '排便回数は通常時より1日何回増えていますか？', options: [
+        { label: '4回未満', value: 1 },
+        { label: '4〜6回', value: 2 },
+        { label: '7回以上', value: 3 }
+      ]},
+      { id: 'q2', text: '日常生活への影響はありますか？', options: [
+        { label: '特に支障なし', value: 1 },
+        { label: '家事や身の回りの動作に一部支障あり', value: 2 },
+        { label: 'セルフケア（着替え、食事など）が困難', value: 3 }
+      ]},
+      { id: 'q3', text: '入院や緊急処置が必要な状態（脱水など）ですか？', options: [
+        { label: 'いいえ', value: 1 },
+        { label: 'はい', value: 3 }
+      ]}
+    ],
+    calcGrade: (answers) => Math.max(...Object.values(answers)),
+    descriptions: {
+      1: "ベースラインより4回/日未満の増加。軽度の腹痛を伴うことがある。",
+      2: "ベースラインより4〜6回/日の増加。日常生活に制限がある。",
+      3: "ベースラインより7回/日以上の増加。失禁、入院、セルフケアの制限。"
     }
   },
-  "血液系": {
-    icon: "🩸",
-    items: {
-      "好中球数減少": {
-        grades: [
-          { grade: 1, desc: "＜LLN〜1500/mm³" },
-          { grade: 2, desc: "＜1500〜1000/mm³" },
-          { grade: 3, desc: "＜1000〜500/mm³" },
-          { grade: 4, desc: "＜500/mm³" },
-        ],
-        action: ["Grade 1-2: 感染予防指導", "Grade 3: 医師報告、G-CSF検討", "Grade 4: 即時医師報告、無菌管理"]
-      },
-      "血小板数減少": {
-        grades: [
-          { grade: 1, desc: "＜LLN〜75,000/mm³" },
-          { grade: 2, desc: "＜75,000〜50,000/mm³" },
-          { grade: 3, desc: "＜50,000〜25,000/mm³" },
-          { grade: 4, desc: "＜25,000/mm³" },
-        ],
-        action: ["Grade 1-2: 打撲・怪我予防指導", "Grade 3: 医師報告", "Grade 4: 即時医師報告、輸血検討"]
-      },
-      "貧血": {
-        grades: [
-          { grade: 1, desc: "Hgb＜LLN〜10.0 g/dL" },
-          { grade: 2, desc: "Hgb＜10.0〜8.0 g/dL" },
-          { grade: 3, desc: "Hgb＜8.0 g/dL；輸血を要する" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1-2: 鉄分・栄養指導", "Grade 3: 医師報告、輸血準備", "Grade 4: 即時対応"]
-      }
+  {
+    id: 'hfs',
+    name: '手足症候群',
+    category: '皮膚障害',
+    questions: [
+      { id: 'q1', text: '皮膚の状態（紅斑・腫れなど）はどうですか？', options: [
+        { label: '軽度の感覚変化・紅斑（痛みなし）', value: 1 },
+        { label: '痛みのある紅斑・腫れ', value: 2 },
+        { label: '重度の痛み・水疱・潰瘍', value: 3 }
+      ]},
+      { id: 'q2', text: '日常生活（歩行、保持など）に支障はありますか？', options: [
+        { label: '支障なし', value: 1 },
+        { label: '支障あり', value: 2 },
+        { label: '極めて困難', value: 3 }
+      ]}
+    ],
+    calcGrade: (answers) => Math.max(...Object.values(answers)),
+    descriptions: {
+      1: "痛みのない皮膚の変化。日常生活に影響なし。",
+      2: "痛みがあるが、身の回りのセルフケアは可能。日常生活が制限される。",
+      3: "激しい痛み、皮膚の剥離。セルフケアが困難。"
     }
   },
-  "皮膚・爪": {
-    icon: "🖐️",
-    items: {
-      "発疹": {
-        grades: [
-          { grade: 1, desc: "体表面積（BSA）の＜10%を占める丘疹/膿疱；そう痒感の有無は問わない" },
-          { grade: 2, desc: "BSAの10〜30%を占める丘疹/膿疱；そう痒感の有無は問わない；日常生活に影響" },
-          { grade: 3, desc: "BSAの＞30%を占める丘疹/膿疱；中等度〜高度のそう痒感；日常生活の制限" },
-          { grade: 4, desc: "生命を脅かす；皮膚の広範囲な剥脱" },
-        ],
-        action: ["Grade 1: 保湿、非刺激性石鹸", "Grade 2: ステロイド外用、抗ヒスタミン", "Grade 3-4: 医師報告、皮膚科紹介"]
-      },
-      "手足症候群": {
-        grades: [
-          { grade: 1, desc: "微小な皮膚変化または皮膚炎（紅斑、浮腫、角質増殖）で日常生活に支障なし" },
-          { grade: 2, desc: "皮膚変化（皮むけ、水疱、出血、亀裂、浮腫）を伴い、日常生活に支障あり" },
-          { grade: 3, desc: "高度の皮膚変化（皮むけ、水疱、出血、亀裂、浮腫、角質増殖）を伴い、セルフケアの日常生活に支障" },
-        ],
-        action: ["Grade 1: 保湿クリーム、刺激回避", "Grade 2: 強力保湿剤、休薬検討", "Grade 3: 医師報告、休薬"]
-      }
-    }
-  },
-  "神経系": {
-    icon: "🧠",
-    items: {
-      "末梢性感覚神経障害": {
-        grades: [
-          { grade: 1, desc: "症状がない；深部腱反射消失または感覚異常" },
-          { grade: 2, desc: "中等度の症状；日常生活（道具を使うもの）に支障" },
-          { grade: 3, desc: "高度の症状；日常生活（セルフケア）に支障" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1: 経過観察、転倒予防指導", "Grade 2: 医師相談、薬剤調整検討", "Grade 3-4: 医師報告、休薬検討"]
-      },
-      "倦怠感": {
-        grades: [
-          { grade: 1, desc: "休息により軽快する倦怠感" },
-          { grade: 2, desc: "休息によって軽快しない倦怠感；日常生活（道具を使うもの）に支障" },
-          { grade: 3, desc: "休息によって軽快しない倦怠感；日常生活（セルフケア）に支障" },
-        ],
-        action: ["Grade 1: 睡眠・活動バランス指導", "Grade 2: 生活調整、原因精査", "Grade 3: 医師報告"]
-      }
-    }
-  },
-  "心臓・循環器": {
-    icon: "❤️",
-    items: {
-      "高血圧": {
-        grades: [
-          { grade: 1, desc: "収縮期BP 120〜139 mmHg または拡張期BP 80〜89 mmHg" },
-          { grade: 2, desc: "収縮期BP 140〜159 mmHg または拡張期BP 90〜99 mmHg；治療変更を要する" },
-          { grade: 3, desc: "収縮期BP≧160 mmHg または拡張期BP≧100 mmHg；医学的介入を要する" },
-          { grade: 4, desc: "生命を脅かす；緊急処置を要する" },
-        ],
-        action: ["Grade 1: 塩分制限、運動指導", "Grade 2: 降圧薬開始・調整", "Grade 3-4: 即時医師報告"]
-      }
+  {
+    id: 'stomatitis',
+    name: '口内炎',
+    category: '胃腸障害',
+    questions: [
+      { id: 'q1', text: '食事や飲み込みの状態はどうですか？', options: [
+        { label: '食事は普通に摂れる', value: 1 },
+        { label: '経口摂取は可能（食事がやや困難）', value: 2 },
+        { label: '経口摂取が著しく困難（流動食のみなど）', value: 3 }
+      ]},
+      { id: 'q2', text: '痛みの程度はどうですか？', options: [
+        { label: '無症状または軽微な痛み', value: 1 },
+        { label: '中等度の痛みがあるが食生活は維持', value: 2 },
+        { label: '激しい痛み', value: 3 }
+      ]}
+    ],
+    calcGrade: (answers) => Math.max(...Object.values(answers)),
+    descriptions: {
+      1: "無症状または軽度の症状。食事制限なし。",
+      2: "痛みがあるが、食生活に一部制限。中等度の紅斑・潰瘍。",
+      3: "激しい痛み、食事摂取が困難。"
     }
   }
-};
+];
 
-const gradeColors = {
-  1: { bg: "#d1fae5", text: "#065f46", border: "#6ee7b7", badge: "#10b981" },
-  2: { bg: "#fef9c3", text: "#713f12", border: "#fde047", badge: "#eab308" },
-  3: { bg: "#ffedd5", text: "#7c2d12", border: "#fdba74", badge: "#f97316" },
-  4: { bg: "#fee2e2", text: "#7f1d1d", border: "#fca5a5", badge: "#ef4444" },
-};
+const App = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [copied, setCopied] = useState(false);
 
-export default function CTCAEApp() {
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [selectedGrade, setSelectedGrade] = useState(null);
-  const [view, setView] = useState("home"); // home | category | item | grade
+  const filteredEvents = useMemo(() => {
+    return CTCAE_DATA.filter(event => 
+      event.name.includes(searchTerm) || event.category.includes(searchTerm)
+    );
+  }, [searchTerm]);
 
-  const selectCategory = (cat) => {
-    setSelectedCategory(cat);
-    setSelectedItem(null);
-    setSelectedGrade(null);
-    setView("category");
+  const currentGrade = useMemo(() => {
+    if (!selectedEvent || Object.keys(answers).length === 0) return null;
+    return selectedEvent.calcGrade(answers);
+  }, [selectedEvent, answers]);
+
+  const handleCopy = () => {
+    const text = `【CTCAE評価：${selectedEvent.name}】
+判定：Grade ${currentGrade}
+状況：${selectedEvent.descriptions[currentGrade]}
+回答詳細：${Object.entries(answers).map(([qid, val]) => {
+      const q = selectedEvent.questions.find(q => q.id === qid);
+      const opt = q.options.find(o => o.value === val);
+      return `\n - ${q.text}: ${opt.label}`;
+    }).join('')}`;
+    
+    document.execCommand('copy'); 
+    // fallback logic normally needed, but using simplicity for this environment
+    const tempInput = document.createElement("textarea");
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand("copy");
+    document.body.removeChild(tempInput);
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const selectItem = (item) => {
-    setSelectedItem(item);
-    setSelectedGrade(null);
-    setView("item");
+  const reset = () => {
+    setSelectedEvent(null);
+    setAnswers({});
   };
 
-  const selectGrade = (grade) => {
-    setSelectedGrade(grade);
-    setView("grade");
+  const getGradeUI = (grade) => {
+    switch (grade) {
+      case 1: return { color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: <CheckCircle className="w-6 h-6" />, label: '経過観察' };
+      case 2: return { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: <AlertTriangle className="w-6 h-6" />, label: '受診勧奨検討' };
+      case 3: return { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: <AlertOctagon className="w-6 h-6" />, label: '至急受診勧奨' };
+      default: return { color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', icon: <Info className="w-6 h-6" />, label: '-' };
+    }
   };
-
-  const goHome = () => { setView("home"); setSelectedCategory(null); setSelectedItem(null); setSelectedGrade(null); };
-  const goCategory = () => { setView("category"); setSelectedItem(null); setSelectedGrade(null); };
-  const goItem = () => { setView("item"); setSelectedGrade(null); };
-
-  const currentData = selectedCategory ? ctcaeData[selectedCategory] : null;
-  const currentItem = selectedItem && currentData ? currentData.items[selectedItem] : null;
-  const currentGradeData = selectedGrade && currentItem ? currentItem.grades.find(g => g.grade === selectedGrade) : null;
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)",
-      fontFamily: "'Noto Sans JP', 'Yu Gothic', sans-serif",
-      color: "#f1f5f9",
-      padding: "0",
-    }}>
-      {/* Header */}
-      <div style={{
-        background: "rgba(255,255,255,0.05)",
-        backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
-        padding: "16px 20px",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-      }}>
-        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 20, cursor: "pointer", flexShrink: 0,
-          }} onClick={goHome}>💊</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.05em" }}>CTCAE グレード確認</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>薬局薬剤師向け副作用評価ツール</div>
-          </div>
-          {view !== "home" && (
-            <button onClick={goHome} style={{
-              marginLeft: "auto", background: "rgba(255,255,255,0.1)",
-              border: "none", color: "#c4b5fd", borderRadius: 8,
-              padding: "6px 12px", fontSize: 12, cursor: "pointer",
-            }}>🏠 ホーム</button>
-          )}
-        </div>
-        {/* Breadcrumb */}
-        {view !== "home" && (
-          <div style={{ maxWidth: 600, margin: "8px auto 0", fontSize: 11, color: "#64748b", display: "flex", gap: 6, alignItems: "center" }}>
-            <span onClick={goHome} style={{ cursor: "pointer", color: "#94a3b8" }}>ホーム</span>
-            {selectedCategory && <><span>›</span><span onClick={goCategory} style={{ cursor: "pointer", color: view === "category" ? "#c4b5fd" : "#94a3b8" }}>{selectedCategory}</span></>}
-            {selectedItem && <><span>›</span><span onClick={goItem} style={{ cursor: "pointer", color: view === "item" ? "#c4b5fd" : "#94a3b8" }}>{selectedItem}</span></>}
-            {selectedGrade && <><span>›</span><span style={{ color: "#c4b5fd" }}>Grade {selectedGrade}</span></>}
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
+      <div className="max-w-2xl mx-auto">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-extrabold text-blue-800 flex items-center justify-center gap-2">
+            <AlertOctagon className="text-blue-600" /> CTCAE Grade 判定アシスト
+          </h1>
+          <p className="text-slate-500 mt-2 text-sm italic">薬局での副作用モニタリングと受診勧奨の判断に</p>
+        </header>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "20px 16px" }}>
-
-        {/* HOME */}
-        {view === "home" && (
-          <div>
-            <div style={{ textAlign: "center", padding: "20px 0 28px" }}>
-              <div style={{
-                display: "inline-block",
-                background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))",
-                border: "1px solid rgba(139,92,246,0.3)",
-                borderRadius: 16, padding: "8px 20px",
-                fontSize: 11, color: "#c4b5fd", marginBottom: 12, letterSpacing: "0.1em"
-              }}>CTCAE v5.0 準拠</div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 8px", lineHeight: 1.3 }}>
-                副作用グレード<br />クイック確認ツール
-              </h1>
-              <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>カテゴリを選択して副作用を確認</p>
+        {!selectedEvent ? (
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="副作用名で検索（例：下痢、手足...）"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {Object.entries(ctcaeData).map(([cat, data]) => (
-                <button key={cat} onClick={() => selectCategory(cat)} style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 16, padding: "20px 16px",
-                  cursor: "pointer", textAlign: "left", color: "#f1f5f9",
-                  transition: "all 0.2s",
-                  display: "flex", flexDirection: "column", gap: 8,
-                }}>
-                  <div style={{ fontSize: 28 }}>{data.icon}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{cat}</div>
-                  <div style={{ fontSize: 11, color: "#64748b" }}>{Object.keys(data.items).length}項目</div>
-                </button>
-              ))}
-            </div>
-
-            <div style={{
-              marginTop: 24, background: "rgba(99,102,241,0.1)",
-              border: "1px solid rgba(99,102,241,0.3)",
-              borderRadius: 12, padding: "14px 16px",
-            }}>
-              <div style={{ fontSize: 12, color: "#a5b4fc", fontWeight: 700, marginBottom: 4 }}>📋 グレード早見</div>
-              {[
-                { g: 1, label: "軽症", color: "#10b981" },
-                { g: 2, label: "中等症", color: "#eab308" },
-                { g: 3, label: "重症", color: "#f97316" },
-                { g: 4, label: "生命の危機", color: "#ef4444" },
-              ].map(({ g, label, color }) => (
-                <div key={g} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0 }}>{g}</div>
-                  <div style={{ fontSize: 12, color: "#cbd5e1" }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* CATEGORY */}
-        {view === "category" && currentData && (
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <div style={{ fontSize: 36 }}>{currentData.icon}</div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{selectedCategory}</h2>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {Object.keys(currentData.items).map((item) => (
-                <button key={item} onClick={() => selectItem(item)} style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 14, padding: "16px 18px",
-                  cursor: "pointer", textAlign: "left", color: "#f1f5f9",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
+            <div className="grid gap-3">
+              {filteredEvents.map(event => (
+                <button
+                  key={event.id}
+                  onClick={() => setSelectedEvent(event)}
+                  className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all text-left"
+                >
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{item}</div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                      {currentData.items[item].grades.length}段階評価
-                    </div>
+                    <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">{event.category}</span>
+                    <h3 className="text-lg font-bold">{event.name}</h3>
                   </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {currentData.items[item].grades.map(g => (
-                      <div key={g.grade} style={{
-                        width: 20, height: 20, borderRadius: 5,
-                        background: gradeColors[g.grade]?.badge || "#64748b",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, fontWeight: 800, color: "#fff",
-                      }}>{g.grade}</div>
-                    ))}
-                  </div>
+                  <ChevronRight className="text-slate-300" />
                 </button>
               ))}
+              {filteredEvents.length === 0 && (
+                <div className="text-center py-10 text-slate-400">
+                  該当する副作用が見つかりません。
+                </div>
+              )}
             </div>
           </div>
-        )}
+        ) : (
+          <div className="space-y-6">
+            <button 
+              onClick={reset}
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors mb-4"
+            >
+              <RotateCcw className="w-4 h-4" /> 検索に戻る
+            </button>
 
-        {/* ITEM */}
-        {view === "item" && currentItem && (
-          <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>{selectedItem}</h2>
-            <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 20 }}>グレードを選択してください</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {currentItem.grades.map((g) => {
-                const c = gradeColors[g.grade];
-                return (
-                  <button key={g.grade} onClick={() => selectGrade(g.grade)} style={{
-                    background: `${c.bg}18`,
-                    border: `1px solid ${c.badge}40`,
-                    borderRadius: 14, padding: "16px 18px",
-                    cursor: "pointer", textAlign: "left", color: "#f1f5f9",
-                    display: "flex", gap: 14, alignItems: "flex-start",
-                  }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10,
-                      background: c.badge,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 16, fontWeight: 900, color: "#fff", flexShrink: 0,
-                    }}>{g.grade}</div>
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+              <div className="bg-blue-600 p-4 text-white">
+                <h2 className="text-xl font-bold">{selectedEvent.name}の評価判定</h2>
+              </div>
+              
+              <div className="p-6 space-y-8">
+                {selectedEvent.questions.map((q) => (
+                  <div key={q.id} className="space-y-3">
+                    <p className="font-medium text-slate-700 leading-tight">{q.text}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {q.options.map((opt) => (
+                        <button
+                          key={opt.label}
+                          onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt.value }))}
+                          className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+                            answers[q.id] === opt.value
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {currentGrade && (
+                <div className={`m-6 p-6 rounded-xl border-2 transition-all ${getGradeUI(currentGrade).bg} ${getGradeUI(currentGrade).border}`}>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className={getGradeUI(currentGrade).color}>
+                      {getGradeUI(currentGrade).icon}
+                    </div>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: c.badge, marginBottom: 4 }}>Grade {g.grade}</div>
-                      <div style={{ fontSize: 13, color: "#e2e8f0", lineHeight: 1.5 }}>{g.desc}</div>
+                      <div className="text-sm font-bold opacity-60 uppercase tracking-widest">RESULT</div>
+                      <div className={`text-2xl font-black ${getGradeUI(currentGrade).color}`}>
+                        Grade {currentGrade} : {getGradeUI(currentGrade).label}
+                      </div>
                     </div>
-                  </button>
-                );
-              })}
+                  </div>
+                  <p className="text-slate-700 bg-white/50 p-3 rounded-lg text-sm border border-white/50">
+                    {selectedEvent.descriptions[currentGrade]}
+                  </p>
+                  
+                  <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={handleCopy}
+                      className="flex-1 bg-slate-800 text-white py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95"
+                    >
+                      {copied ? <CheckCircle className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                      {copied ? 'コピーしました' : 'SOAPE形式でコピー'}
+                    </button>
+                    {currentGrade >= 2 && (
+                      <div className="flex-1 bg-amber-100 text-amber-800 p-3 rounded-xl text-xs font-bold border border-amber-200 flex items-center justify-center text-center">
+                        ⚠️ Grade 2以上です。<br/>疑義照会・受診勧奨を検討してください。
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* GRADE DETAIL */}
-        {view === "grade" && currentGradeData && currentItem && (
-          <div>
-            {(() => {
-              const c = gradeColors[selectedGrade];
-              return (
-                <>
-                  <div style={{
-                    background: `${c.bg}20`,
-                    border: `1px solid ${c.badge}60`,
-                    borderRadius: 16, padding: "20px",
-                    marginBottom: 16,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                      <div style={{
-                        width: 48, height: 48, borderRadius: 14,
-                        background: c.badge,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 22, fontWeight: 900, color: "#fff",
-                      }}>{selectedGrade}</div>
-                      <div>
-                        <div style={{ fontSize: 18, fontWeight: 800 }}>{selectedItem}</div>
-                        <div style={{ fontSize: 13, color: c.badge, fontWeight: 700 }}>Grade {selectedGrade}</div>
-                      </div>
-                    </div>
-                    <div style={{
-                      background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: "12px 14px",
-                      fontSize: 13, lineHeight: 1.7, color: "#e2e8f0",
-                    }}>
-                      {currentGradeData.desc}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 16, padding: "18px",
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#c4b5fd", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>💬</span> 薬剤師の対応ポイント
-                    </div>
-                    {currentItem.action.map((act, i) => (
-                      <div key={i} style={{
-                        display: "flex", gap: 10, alignItems: "flex-start",
-                        marginBottom: 10,
-                        opacity: act.includes(`Grade ${selectedGrade}`) || act.startsWith(`Grade ${selectedGrade}`) ? 1 : 0.35,
-                      }}>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 6, background: "#6366f1",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, color: "#fff", fontWeight: 700, flexShrink: 0, marginTop: 1,
-                        }}>{i + 1}</div>
-                        <div style={{ fontSize: 13, color: "#e2e8f0", lineHeight: 1.6 }}>{act}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedGrade >= 3 && (
-                    <div style={{
-                      marginTop: 14, background: "rgba(239,68,68,0.15)",
-                      border: "1px solid rgba(239,68,68,0.4)",
-                      borderRadius: 12, padding: "12px 14px",
-                      display: "flex", gap: 8, alignItems: "center",
-                    }}>
-                      <span style={{ fontSize: 18 }}>🚨</span>
-                      <div style={{ fontSize: 12, color: "#fca5a5", lineHeight: 1.5 }}>
-                        <strong>Grade {selectedGrade}は重篤な副作用です。</strong><br />
-                        速やかに主治医・担当医への報告を行ってください。
-                      </div>
-                    </div>
-                  )}
-
-                  <button onClick={goItem} style={{
-                    marginTop: 16, width: "100%",
-                    background: "rgba(255,255,255,0.07)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    borderRadius: 12, padding: "12px",
-                    color: "#94a3b8", fontSize: 13, cursor: "pointer",
-                  }}>← 他のグレードを確認</button>
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-      </div>
-
-      <div style={{ textAlign: "center", padding: "20px", fontSize: 10, color: "#334155" }}>
-        CTCAE v5.0 | 本ツールは参考情報です。判断は必ず臨床的文脈に基づいてください。
+        <footer className="mt-12 text-center text-slate-400 text-[10px] leading-relaxed">
+          ※本ツールはCTCAE v5.0 日本語訳JCOG版を参考に作成した簡易判定支援用です。<br/>
+          最終的な医療的判断は医師・薬剤師の責任で行ってください。
+        </footer>
       </div>
     </div>
   );
-}
+};
+
+export default App;
